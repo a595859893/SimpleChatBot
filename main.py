@@ -3,6 +3,7 @@ import re
 import random
 import os
 import argparse
+from typing import Union
 
 FILENAME_SEQ = "chatbot.seq"
 FILENAME_WORD = "chatbot.word"
@@ -18,8 +19,8 @@ class Robot:
 
     def reply(self, chat: str) -> str:
         for question in self.seq.keys():
-            que_word = re.findall(r"\[(.+?)\]", question)
-            que = "^%s$" % re.sub(r"\[(.+?)\]", "(.+?)", question)
+            que_word = re.findall(r"\[(.+?)\][^\[]", question)
+            que = "^%s$" % re.sub(r"\[(.+?)\]([^\[])", r"(.+?)\2", question)
             match = re.match(que, chat)
             # 随机选择一个匹配项进行回答
             if match:
@@ -55,10 +56,23 @@ class Robot:
 
         self.save()
 
-    def is_word_type(self, word: str, word_type: str):
-        word_list = self.word.get(word_type, [])
-        if word in word_list:
+    def is_word_type(self, word: str, word_type: Union[str, list]):
+        # 目前是倒数匹配，从最后一个开始匹配起
+        # 效率有点低，考虑启发式算法是先从word_type里单词最少的找起
+        # 不过待填（也可能不填？）
+        if isinstance(word_type, str):
+            word_type = word_type.split("][")
+        elif len(word_type) == 0 and word == "":
             return True
+
+        word_list = self.word.get(word_type[-1], [])
+        for i in range(len(word) - 1, -1, -1):
+            if word[i:] in word_list:
+                temp_type = word_type.pop()
+                if self.is_word_type(word[:i], word_type):
+                    return True
+                word_list.append(temp_type)
+
         return False
 
     def save(self):
