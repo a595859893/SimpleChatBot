@@ -1,5 +1,5 @@
 # SimpleChatBot
-Version 1
+Version 2
 
 初步的成分匹配，可以匹配一定的词语成分
  
