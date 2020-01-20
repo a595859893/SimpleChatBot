@@ -38,31 +38,37 @@ class Robot:
         self.study_knowledge(que_tag, question)
         self.dialog[que_tag].append(answer)
 
-    def match_single_tag(self, text: str, tag: str) -> bool:
+    def match_single_tag(self, text: str, tag: str, ctx: list) -> bool:
         for match_text in self.known.get(tag, []):
             match_tags = re.findall(r"\[(.+?)\]([^\[]|$)", match_text)
             match_re = "^%s$" % re.sub(r"\[(.+?)\]([^\[]|$)", r"(.+?)\2",
                                        match_text)
             match = re.match(match_re, text)
+
             if match:
                 match_succ = True
+                temp_ctx = []
                 for sub_text, sub_tag in zip(match.groups(), match_tags):
                     # 括号导致匹配是个元组，从里面拆出我们想要的
                     sub_tag = sub_tag[0]
                     sub_tags = sub_tag.split("][")
                     if len(sub_tags) == 1:
                         match_succ = self.match_single_tag(
-                            sub_text, sub_tags[0])
+                            sub_text, sub_tags[0], temp_ctx)
                     else:
-                        match_succ = self.match_multi_tag(sub_text, sub_tags)
+                        match_succ = self.match_multi_tag(
+                            sub_text, sub_tags, temp_ctx)
 
                     if not match_succ:
                         break
 
                 if match_succ:
+                    temp_ctx.append((text, tag))
+                    ctx.extend(temp_ctx)
+                    # print("single:", ctx)
                     return True
 
-    def match_multi_tag(self, text: str, tags: list) -> bool:
+    def match_multi_tag(self, text: str, tags: list, ctx: list) -> bool:
         # 目前是倒数匹配，从最后一个开始匹配起
         # 效率有点低，考虑启发式算法是先从word_type里单词最少的找起
         # 不过待填（也可能不填？）
@@ -73,18 +79,46 @@ class Robot:
 
         # 递归步
         for i in range(len(text) - 1, -1, -1):
-            if self.match_single_tag(text[i:], tags[-1]):
+            if self.match_single_tag(text[i:], tags[-1], ctx):
                 temp_tag = tags.pop()
-                if self.match_multi_tag(text[:i], tags):
+                if self.match_multi_tag(text[:i], tags, ctx):
+                    ctx.append((text[i:], temp_tag))
+                    # print("muti:", ctx)
                     return True
                 tags.append(temp_tag)
 
         return False
 
+    def match_dialog(self, text: str, ctx: list) -> str:
+        sub_succ = True
+
+        def sub_func(match_obj):
+            nonlocal sub_succ
+            if sub_succ:
+                for ctx_text, ctx_tag in ctx:
+                    if match_obj.groups(0)[0] == ctx_tag:
+                        return ctx_text
+                sub_succ = False
+            return ""
+
+        dialog = re.sub(r"\[(.+?)\]", sub_func, text)
+
+        return dialog if sub_succ else None
+
     def reply(self, chat: str) -> str:
         for que_tag in self.dialog.keys():
-            if self.match_single_tag(chat, que_tag):
-                return random.choice(self.dialog[que_tag])
+            ctx = []
+            if self.match_single_tag(chat, que_tag, ctx):
+                choice = []
+                for dialog in self.dialog[que_tag]:
+                    dialog = self.match_dialog(dialog, ctx)
+                    if dialog is not None:
+                        choice.append(dialog)
+
+                if len(choice) == 0:
+                    continue
+
+                return random.choice(choice)
 
         return None
 
