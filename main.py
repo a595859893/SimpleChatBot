@@ -1,5 +1,6 @@
 from robot import Robot
 import argparse
+import re
 
 
 class CmdUI:
@@ -51,10 +52,17 @@ class CmdUI:
         elif self.state == CmdUI.STATE_TEACH_KNOW:
             for teach in chat.split(';'):
                 part = teach.split(":")
-                if len(part) == 2:
-                    tag = part[0]
-                    for known in part[1].split(" "):
-                        self.robot.study_knowledge(tag, known)
+                if len(part) != 2:
+                    continue
+                tag = part[0]
+                for known, attr_pair in re.findall(r"([^ ]+?)\((.+?)\)",
+                                                   part[1]):
+                    self.robot.study_knowledge(tag, known)
+                    for attr_type, attr in re.findall(r"([^ ]+?)\-(.+?)",
+                                                      attr_pair):
+                        self.robot.study_attr(known, attr_type, attr)
+                        # print(attr_type, attr)
+
             self.append_output("我明白了！")
 
     def cmd_parse(self, cmd: str) -> bool:

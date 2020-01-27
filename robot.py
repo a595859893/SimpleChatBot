@@ -2,6 +2,41 @@ import pickle
 import re
 import random
 import os
+import utils
+
+
+class Entity:
+    def __init__(self, tag: str):
+        self.tag = tag
+        self.sub = []
+        self.attr = {}
+
+    def append(self, sub: str):
+        self.sub.append(sub)
+
+    def get_tag(self) -> str:
+        return self.tag
+
+    def get_sub(self) -> list:
+        return self.sub
+
+    def add_attr(self, attr_type: str, attr: str):
+        if attr_type not in self.attr:
+            self.attr[attr_type] = []
+        if attr not in self.attr[attr_type]:
+            self.attr[attr_type].append(attr)
+
+    def get_attr(self, attr_type: str) -> str:
+        if attr_type in self.attr:
+            return random.choice(self.attr[attr_type])
+
+        return None
+
+    def is_sub(self, sub: str):
+        return sub in self.sub
+
+    def __repr__(self):
+        return repr(self.tag) + repr(self.attr) + repr(self.sub)
 
 
 class Robot:
@@ -18,15 +53,22 @@ class Robot:
 
     def study_knowledge(self, tag: str, match: str):
         if tag not in self.known:
-            self.known[tag] = []
+            self.known[tag] = Entity(tag)
 
-        knowledge = self.known[tag]
-        knowledge.append(match)
+        if match not in self.known:
+            self.known[match] = Entity(match)
+
+        self.known[tag].append(self.known[match])
+
+    def study_attr(self, tag: str, attr_type: str, attr: str):
+        if tag not in self.known:
+            self.known[tag] = Entity(tag)
+        self.known[tag].add_attr(attr_type, attr)
 
     def study_dialog(self, question: str, answer: str):
         que_tag = None
         for tag in self.known.keys():
-            if question in self.known.get(tag, []):
+            if self.known.get(tag, Entity(tag)).is_sub(question):
                 que_tag = tag
                 break
         if que_tag is None:
@@ -39,18 +81,19 @@ class Robot:
         self.dialog[que_tag].append(answer)
 
     def match_single_tag(self, text: str, tag: str, ctx: list) -> bool:
-        for match_text in self.known.get(tag, []):
-            match_tags = re.findall(r"\[(.+?)\]([^\[]|$)", match_text)
-            match_re = "^%s$" % re.sub(r"\[(.+?)\]([^\[]|$)", r"(.+?)\2",
-                                       match_text)
-            match = re.match(match_re, text)
+        match_regex = re.compile(r"\[(.+?)\](?=[^\[]|$)")
+        for entity in self.known.get(tag, Entity(tag)).get_sub():
+            match_text = entity.get_tag()
+            match_tags = match_regex.findall(match_text)
 
+            match_escape = utils.escape(match_text)
+            match_re = "^%s$" % match_regex.sub(r"(.+?)", match_escape)
+            match = re.match(match_re, text)
             if match:
                 match_succ = True
                 temp_ctx = []
                 for sub_text, sub_tag in zip(match.groups(), match_tags):
-                    # 括号导致匹配是个元组，从里面拆出我们想要的
-                    sub_tag = sub_tag[0]
+                    print(sub_text, sub_tag)
                     sub_tags = sub_tag.split("][")
                     if len(sub_tags) == 1:
                         match_succ = self.match_single_tag(
@@ -95,9 +138,20 @@ class Robot:
         def sub_func(match_obj):
             nonlocal sub_succ
             if sub_succ:
-                for ctx_text, ctx_tag in ctx:
-                    if match_obj.groups(0)[0] == ctx_tag:
-                        return ctx_text
+                match_str = match_obj.group(1)
+                match_attr = re.match(r"^(.+?)\-(.+?)$", match_str)
+                if match_attr:
+                    tag, attr_type = match_attr.groups()
+                    for ctx_text, ctx_tag in ctx:
+                        if tag == ctx_tag:
+
+                            attr = self.known[ctx_text].get_attr(attr_type)
+                            if attr is not None:
+                                return attr
+                else:
+                    for ctx_text, ctx_tag in ctx:
+                        if match_str == ctx_tag:
+                            return ctx_text
                 sub_succ = False
             return ""
 
