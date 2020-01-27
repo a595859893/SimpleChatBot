@@ -93,7 +93,6 @@ class Robot:
                 match_succ = True
                 temp_ctx = []
                 for sub_text, sub_tag in zip(match.groups(), match_tags):
-                    print(sub_text, sub_tag)
                     sub_tags = sub_tag.split("][")
                     if len(sub_tags) == 1:
                         match_succ = self.match_single_tag(
