@@ -52,6 +52,7 @@ class Robot:
             self.load()
 
     def study_knowledge(self, tag: str, match: str):
+        # print(tag, match)
         if tag not in self.known:
             self.known[tag] = Entity(tag)
 
@@ -81,6 +82,9 @@ class Robot:
         self.dialog[que_tag].append(answer)
 
     def match_single_tag(self, text: str, tag: str, ctx: list) -> bool:
+        """
+        匹配单个tag相邻的情况，如果单tag有规则能拆成多个tag，则转为匹配多隔tag
+        """
         match_regex = re.compile(r"\[(.+?)\](?=[^\[]|$)")
         for entity in self.known.get(tag, Entity(tag)).get_sub():
             match_text = entity.get_tag()
@@ -111,6 +115,9 @@ class Robot:
                     return True
 
     def match_multi_tag(self, text: str, tags: list, ctx: list) -> bool:
+        """
+        匹配多个tag相邻的情况，通过遍历每种分割情况来确定结果
+        """
         # 目前是倒数匹配，从最后一个开始匹配起
         # 效率有点低，考虑启发式算法是先从word_type里单词最少的找起
         # 不过待填（也可能不填？）
@@ -131,26 +138,56 @@ class Robot:
 
         return False
 
+    def match_word(self, word: str, ctx: list) -> str:
+        """
+        获取特定属性，在上下文下对应的内容
+        """
+        match_attr = re.match(r"^(.+?)\-(.+?)$", word)
+        if match_attr:
+            tag, attr_type = match_attr.groups()
+            for ctx_text, ctx_tag in ctx:
+                if tag == ctx_tag:
+                    attr = self.known[ctx_text].get_attr(attr_type)
+                    if attr is not None:
+                        return attr
+        else:
+            for ctx_text, ctx_tag in ctx:
+                if word == ctx_tag:
+                    return ctx_text
+        return None
+
     def match_dialog(self, text: str, ctx: list) -> str:
+        """
+        将模板按照上下文填充为想要的样子
+        """
         sub_succ = True
+        re_cond_eq = re.compile(r"^\?(.+?) (.+?)$")
+        re_cond_neq = re.compile(r"^!(.+?) (.+?)$")
 
         def sub_func(match_obj):
             nonlocal sub_succ
             if sub_succ:
                 match_str = match_obj.group(1)
-                match_attr = re.match(r"^(.+?)\-(.+?)$", match_str)
-                if match_attr:
-                    tag, attr_type = match_attr.groups()
-                    for ctx_text, ctx_tag in ctx:
-                        if tag == ctx_tag:
+                match_eq = re_cond_eq.match(match_str)
 
-                            attr = self.known[ctx_text].get_attr(attr_type)
-                            if attr is not None:
-                                return attr
-                else:
-                    for ctx_text, ctx_tag in ctx:
-                        if match_str == ctx_tag:
-                            return ctx_text
+                # 上下文相等条件，继续匹配，否则本回答不成立
+                if match_eq is not None:
+                    word = self.match_word(match_eq.group(1), ctx)
+                    word_cond = self.match_word(match_eq.group(2), ctx)
+                    if word == word_cond:
+                        return ""
+
+                # 上下文不相等，继续匹配，否则本回答不成立
+                match_neq = re_cond_neq.match(match_str)
+                if match_neq is not None:
+                    word = self.match_word(match_neq.group(1), ctx)
+                    word_cond = self.match_word(match_neq.group(2), ctx)
+                    if word != word_cond:
+                        return ""
+                # 填充tag
+                word = self.match_word(match_str, ctx)
+                if word is not None:
+                    return word
                 sub_succ = False
             return ""
 

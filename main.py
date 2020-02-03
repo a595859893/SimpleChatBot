@@ -55,13 +55,17 @@ class CmdUI:
                 if len(part) != 2:
                     continue
                 tag = part[0]
-                for known, attr_pair in re.findall(r"([^ ]+?)\((.+?)\)",
-                                                   part[1]):
-                    self.robot.study_knowledge(tag, known)
-                    for attr_type, attr in re.findall(r"([^ ]+?)\-(.+?)",
-                                                      attr_pair):
-                        self.robot.study_attr(known, attr_type, attr)
-                        # print(attr_type, attr)
+                attr = re.findall(r"([^ ]+?)\((.+?)\)", part[1])
+                if len(attr) > 0:
+                    for known, attr_pair in attr:
+                        self.robot.study_knowledge(tag, known)
+                        for attr_type, attr in re.findall(
+                                r"([^ ]+?)\-(.+?)", attr_pair):
+                            self.robot.study_attr(known, attr_type, attr)
+                            # print(attr_type, attr)
+                else:
+                    for known in part[1].split(" "):
+                        self.robot.study_knowledge(tag, known)
 
             self.append_output("我明白了！")
 
@@ -107,10 +111,10 @@ if __name__ == "__main__":
             if len(test_bag) == 0:
                 exit()
             inputs = test_bag.pop()
-            print("%s:%s" % (YOUR_NAME, inputs))
+            print("%s\t%s" % (YOUR_NAME, inputs))
         else:
-            inputs = input("%s：" % YOUR_NAME)
+            inputs = input("%s\t" % YOUR_NAME)
 
         ui.cmd_input(inputs)
         for output in ui.get_outputs():
-            print("%s:%s" % (ROBOT_NAME, output))
+            print("%s\t%s" % (ROBOT_NAME, output))
