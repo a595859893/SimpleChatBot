@@ -6,8 +6,9 @@ import re
 class CmdUI:
     STATE_CHAT = 0
     STATE_UNKNOW = 1
-    STATE_TEACH_KNOW = 2
-    STATE_TEACH_DIAG = 3
+    STATE_TEACH_ENTITY = 2
+    STATE_TEACH_CONN = 3
+    STATE_TEACH_DIAG = 4
 
     def __init__(self, **kwargs):
         self.robot = Robot(**kwargs)
@@ -46,35 +47,55 @@ class CmdUI:
                 self.buffer = chat
                 self.append_output("我应该怎么回复？")
             else:
-                self.robot.study_dialog(self.buffer, chat)
+                for answer in chat.split(";"):
+                    # print(self.buffer, answer)
+                    self.robot.study_dialog(self.buffer, answer)
                 self.buffer = None
                 self.append_output("我明白了！")
-        elif self.state == CmdUI.STATE_TEACH_KNOW:
+        elif self.state == CmdUI.STATE_TEACH_ENTITY:
             for teach in chat.split(';'):
                 part = teach.split(":")
                 if len(part) != 2:
                     continue
                 tag = part[0]
-                attr = re.findall(r"([^ ]+?)\((.+?)\)", part[1])
-                if len(attr) > 0:
-                    for known, attr_pair in attr:
-                        self.robot.study_knowledge(tag, known)
-                        for attr_type, attr in re.findall(
-                                r"([^ ]+?)\-(.+?)", attr_pair):
-                            self.robot.study_attr(known, attr_type, attr)
-                            # print(attr_type, attr)
-                else:
-                    for known in part[1].split(" "):
-                        self.robot.study_knowledge(tag, known)
+                for known in part[1].split(" "):
+                    self.robot.study_entity(tag, known)
 
             self.append_output("我明白了！")
+        elif self.state == CmdUI.STATE_TEACH_CONN:
+            part = re.match(r"(.+?)(<->|->)(.+)", chat)
+            if part is not None:
+                pre_dict = self.make_parse_dict(part.group(1))
+                post_dict = self.make_parse_dict(part.group(3))
+                # print(pre_dict, post_dict)
+                if pre_dict is not None and post_dict is not None:
+                    double = part.group(2) == "<->"
+                    self.robot.study_connect(pre_dict, post_dict, double)
+            self.append_output("我明白了！")
+
+    def make_parse_dict(self, part: str) -> dict:
+        post_dict = {}
+        for pair in part.split(" "):
+            pair = pair.split(":")
+            if len(pair) == 2:
+                post_dict[pair[0]] = pair[1]
+            elif len(pair) == 1:
+                post_dict[pair[0]] = None
+            else:
+                return None
+        return post_dict
 
     def cmd_parse(self, cmd: str) -> bool:
         # 机器人状态转移
-        if cmd == "教导知识":
-            self.state = CmdUI.STATE_TEACH_KNOW
+        if cmd == "教导实体":
+            self.state = CmdUI.STATE_TEACH_ENTITY
             self.buffer = None
-            self.append_output("进入知识学习模式")
+            self.append_output("进入实体学习模式")
+            return True
+        elif cmd == "教导联系":
+            self.state = CmdUI.STATE_TEACH_CONN
+            self.buffer = None
+            self.append_output("进入联系学习模式")
             return True
         elif cmd == "教导对话":
             self.state = CmdUI.STATE_TEACH_DIAG
