@@ -1,5 +1,5 @@
 # SimpleChatBot
-Version 5
+Version 6
 
 允许链式推导，多条件推导多条件，tag引用
  
