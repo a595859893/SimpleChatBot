@@ -3,6 +3,10 @@ import json
 from cmdui import CmdUI
 
 app = Flask(__name__)
+app.config.from_mapping(
+    DEBUG = False,
+    TESTING = False
+)
 robot = CmdUI()
 
 app.route('/')

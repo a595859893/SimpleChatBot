@@ -1,4 +1,4 @@
-from robot import Robot
+from src.robot import Robot
 import argparse
 import re
 
@@ -116,7 +116,7 @@ if __name__ == "__main__":
     arg = arg.parse_args()
     test_bag = []
     if arg.test:
-        with open("./test/text_inputs.txt", "r", encoding="utf8") as text:
+        with open("../test/text_inputs.txt", "r", encoding="utf8") as text:
             for line in text:
                 test_bag.append(line.replace("\n", ''))
         test_bag.reverse()
