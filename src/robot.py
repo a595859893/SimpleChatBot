@@ -34,12 +34,15 @@ class Robot:
 
     def study_entity(self, tag: str, match: str):
         self.knowledge.study_entity(tag, match)
+        self.save()
 
     def study_connect(self, pre: dict, post: dict, double: bool):
         self.knowledge.study_connect(pre, post, double)
+        self.save()
 
     def study_dialog(self, question: str, answer: str):
         self.knowledge.study_dialog(question, answer)
+        self.save()
 
     def save(self):
         self.knowledge.save()
