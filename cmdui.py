@@ -1,6 +1,9 @@
-from src.robot import Robot
 import argparse
 import re
+
+import pathimport  # for slient hint
+from src.robot import Robot
+assert pathimport  # for slient hint
 
 
 class CmdUI:
