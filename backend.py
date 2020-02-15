@@ -7,7 +7,7 @@ app.config.from_mapping(DEBUG=False, TESTING=False)
 robot = CmdUI()
 
 
-@app.route('/api/chat')
+@app.route('/api/chat', methods=['POST'])
 def chat():
     try:
         data = request.get_data()
