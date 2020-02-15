@@ -1,4 +1,5 @@
 .git
 .vscode
 __pycache__
+test
 *.md
