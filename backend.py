@@ -7,13 +7,20 @@ app.config.from_mapping(DEBUG=False, TESTING=False)
 robot = CmdUI()
 
 
-@app.route('/chat')
+@app.route('/api/chat')
 def chat():
-    data = request.get_data()
-    json_re = json.loads(data)
-    print(json_re)
-    robot.cmd_input(json_re["message"])
-    return json.dump({messages: robot.get_outputs()})
+    try:
+        data = request.get_data()
+        json_re = json.loads(data)
+        robot.cmd_input(json_re["message"])
+        return json.dumps({
+            "ok":True,
+            "messages": robot.get_outputs()
+        })
+    except Exception as e:
+        return json.dumps({
+            "ok":False
+        })
 
 
 if __name__ == '__main__':

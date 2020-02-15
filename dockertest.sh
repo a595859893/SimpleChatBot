@@ -1,1 +1,1 @@
-docker build -t mypage-composer_chatbot . && docker run -it mypage-composer_chatbot
+docker build -t mypage-composer_chatbot . && docker run -it -p 3001:3001 mypage-composer_chatbot
