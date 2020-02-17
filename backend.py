@@ -12,12 +12,23 @@ def chat():
     try:
         data = request.get_data()
         json_re = json.loads(data)
-        robot.cmd_input(json_re["message"])
+        print(data,json_re)
+        context = {
+            "state":json_re["state"],
+            "buffer":json_re["buffer"]
+        }
+
+        context = robot.context_input(json_re["message"],context)
+        print(context)
         return json.dumps({
             "ok":True,
+            "state":context["state"],
+            "buffer":context["buffer"],
             "messages": robot.get_outputs()
         })
+
     except Exception as e:
+        print(e)
         return json.dumps({
             "ok":False
         })

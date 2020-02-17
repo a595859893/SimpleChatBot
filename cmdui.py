@@ -18,6 +18,21 @@ class CmdUI:
         self.state = CmdUI.STATE_CHAT
         self.buffer = None
         self.output = []
+    
+    def context_input(self,message,context):
+        self.set_context(context)
+        self.cmd_input(message)
+        return self.get_context()
+
+    def set_context(self,context:dict):
+        self.state = context["state"]
+        self.buffer = context["buffer"]
+
+    def get_context(self):
+        return {
+            "state":self.state,
+            "buffer":self.buffer
+        }
 
     def append_output(self, output: str):
         self.output.append(output)
