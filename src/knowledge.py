@@ -28,7 +28,7 @@ class Knowledge:
             self.known[entity].append(self.known[sub])
 
     def study_connect(self, pre: dict, post: dict, double: bool):
-        conn = Connect(pre, post, double)
+        conn = Statement(pre, post, double)
         for entity in pre:
             if entity not in self.known:
                 self.known[entity] = Entity(entity)
@@ -91,7 +91,49 @@ class Knowledge:
                 self.known = pickle.load(data)
 
 
-class Connect:
+class Instance:
+    """
+    entity(string):抽象
+    tag(string):区分抽象的标签
+    text(string):实例
+    evidence(list):推导依据
+    """
+
+    def __init__(self, entity: str, text: str, evidence: list, tag=None):
+        self.entity = entity
+        self.text = text
+        self.evidence = evidence
+        self.tag = tag
+
+    def get_entity(self): return self.entity
+    def get_text(self): return self.text
+    def get_evidence(self): return self.evidence
+    def get_tag(self): return self.tag
+
+    def __eq__(self, other):
+        if not isinstance(other, Instance):
+            return False
+        if self.entity != other.entity:
+            return False
+        if self.text != other.text:
+            return False
+        if self.tag != other.tag:
+            return False
+
+        # evidence 是否要算入相等判断内呢？
+        return True
+
+    def __repr__(self):
+        return "%s(%s)-%s\t(%s)" % (self.entity, self.tag, self.text, repr(self.evidence))
+
+
+class Statement:
+    """
+    pre(dict[string]sting): key为抽象，value为具体
+    post(dict[string]sting):  key为抽象，value为具体
+    double(Connection): 是否是双向推导
+    """
+
     def __init__(self, pre: dict, post: dict, double: bool):
         self.pre = pre
         self.post = post
@@ -100,12 +142,12 @@ class Connect:
     def infer(self, ctx) -> list:
         evdience = []
         # print("====")
-        for entity, sub in self.pre.items():
+        for entity_str, sub in self.pre.items():
             succ = False
-            for trace in ctx.findAll(entity):
-                if sub is None or trace.get_text() == sub:
+            for entity in ctx.findAll(entity_str):
+                if sub is None or entity.get_text() == sub:
                     succ = True
-                    evdience.append(trace)
+                    evdience.append(entity)
                     break
             # print(evdience, entity, sub)
             if succ is False:
@@ -113,7 +155,7 @@ class Connect:
 
         infer = []
         for entity, sub in self.post.items():
-            infer.append(Trace(entity, sub, evdience))
+            infer.append(Instance(entity, sub, evdience))
 
         return infer
 
@@ -121,7 +163,7 @@ class Connect:
         return repr(self.pre) + repr(self.post)
 
     def __eq__(self, other):
-        if not isinstance(other, Connect):
+        if not isinstance(other, Statement):
             return False
         if self.double != other.double:
             return False
@@ -134,26 +176,25 @@ class Connect:
 
 
 class Entity:
+    """
+    tag(string): 用于表示实体的文字，带[]的场合意味着联系其它实体
+    sub(Entity): 该实体的子实体，意味着该实体可以转化为的其它实体
+    conn(Connection): 用于知识推导的记录
+    """
+
     def __init__(self, tag: str):
         self.tag = tag
         self.sub = []
         self.conn = []
 
-    def append(self, sub):
-        self.sub.append(sub)
+    def append(self, sub): self.sub.append(sub)
+    def get_text(self) -> str: return self.tag
+    def get_sub(self) -> list: return self.sub
+    def get_conn(self): return self.conn
 
-    def get_text(self) -> str:
-        return self.tag
-
-    def get_sub(self) -> list:
-        return self.sub
-
-    def add_conn(self, conn: Connect):
+    def add_conn(self, conn: Statement):
         if conn not in self.conn:
             self.conn.append(conn)
-
-    def get_conn(self):
-        return self.conn
 
     def has_sub(self, sub: str):
         for entity in self.sub:
@@ -165,120 +206,107 @@ class Entity:
         return repr(self.tag) + repr(self.conn) + repr(self.sub)
 
 
-class Trace:
-    def __init__(self, entity: str, text: str, evidence: list):
-        self.entity = entity
-        self.text = text
-        self.evidence = evidence
-
-    def get_entity(self):
-        return self.entity
-
-    def get_text(self):
-        return self.text
-
-    def get_evidence(self):
-        return self.evidence
-
-    def __eq__(self, other):
-        if not isinstance(other, Trace):
-            return False
-
-        if self.entity == other.entity and self.text == other.text:
-            # print(set(self.evidence), set(other.evidence))
-            # print(set(self.evidence) == set(other.evidence))
-            # return set(self.evidence) == set(other.evidence)
-            return True
-        # evidence 是否要算入相等判断内呢？
-        return False
-
-    def __repr__(self):
-        return "%s-%s(%s)" % (self.entity, self.text, repr(self.evidence))
-
-
 class Context:
     def __init__(self):
-        self.trace_stack = [{}]
+        self.inst_stack = [{}]
 
-    def find(self, entity: str, tag=None, cond=None) -> Trace:
+    def find(self, entity_str: str, tag=None, evdience=None) -> Instance:
         """
-        返回满足tag和cond的entity的Trace
+        返回满足tag和cond的entity的Instance
         """
-        for stack in self.trace_stack:
-            if (entity, tag) in stack:
-                return stack[(entity, tag)]
+        for stack in self.inst_stack:
+            for entity in stack.get(entity_str, []):
+                if entity.get_tag() != tag:
+                    continue
+
+                if evdience is not None and entity.get_evidence() != evdience:
+                    continue
+
+                return entity
+
         return None
 
-    def findAll(self, entity: str) -> list:
+    def findAll(self, entity_str: str) -> list:
         result = []
-        for stack in self.trace_stack:
-            for stack_entity, stack_sub in stack.items():
-                if stack_entity[0] == entity:
-                    result.append(stack_sub)
+        for stack in self.inst_stack:
+            for stack_entity_str, stack_entities in stack.items():
+                if stack_entity_str == entity_str:
+                    result.extend(stack_entities)
 
         return result
 
-    def new_stack(self):
-        self.trace_stack.append({})
+    def new_stack(self): self.inst_stack.append({})
+    def aborat_stack(self): self.inst_stack.pop()
 
     def apply_stack(self):
-        trace = self.trace_stack.pop()
-        self.trace_stack[-1].update(trace)
+        stack = self.inst_stack.pop()
+        for key in stack.keys():
+            if key in self.inst_stack[-1]:
+                self.inst_stack[-1][key].extend(stack[key])
+            else:
+                self.inst_stack[-1][key] = stack[key]
 
-    def aborat_stack(self):
-        self.trace_stack.pop()
+    def append(self, inst: Instance) -> bool:
+        entity = inst.get_entity()
+        tag = inst.get_tag()
+        evdience = inst.get_evidence()
+        if self.find(entity, tag=tag, evdience=evdience) is not None:
+            return False
 
-    def append(self, entity: str, text: str, tag: str, evidence=None):
-        self.trace_stack[-1][(entity, tag)] = Trace(entity, text, evidence)
+        if entity not in self.inst_stack[-1]:
+            self.inst_stack[-1][entity] = []
+
+        self.inst_stack[-1][entity].append(inst)
+        return True
+
+    def iter_all_inst(self):
+        for stack in self.inst_stack:
+            for _, inst_list in stack.items():
+                for inst in inst_list:
+                    yield inst
+
+    def get_known_stat(self, known: Knowledge):
+        assert len(self.inst_stack) == 1, "上下文栈未全退出"
+        known_stat = []
+
+        for inst in self.iter_all_inst():
+            entity = inst.get_entity()
+            for stat in known.get_conn(entity):
+                if stat not in known_stat:
+                    known_stat.append(stat)
+        return known_stat
+
+    def apply_closure(self, append_stat: list, known: Knowledge):
+        new_stat = []
+        for stat in append_stat:
+            infer = stat.infer(self)
+            if infer is None:
+                continue
+
+            for inst in infer:
+                entity = inst.get_entity()
+                text = inst.get_text()
+                evidence = inst.get_evidence()
+
+                # TODO:解决同推导的tag覆盖问题
+                if self.append(Instance(entity, text, evidence, tag=None)):
+                    # TODO:解决推导可能成环的问题，尝试剪枝
+                    for stat in known.get_conn(entity):
+                        new_stat.append(stat)
+
+        if len(new_stat) > 0:
+            self.apply_closure(new_stat, known)
 
     def infer(self, known: Knowledge):
-        assert len(self.trace_stack) == 1, "上下文栈未全退出"
-        inference = []
-        traces = self.trace_stack[0]
-        # 获取context中所有trace对应的conn
-        # 用于后续遍历conn从而推导出新的trace
-        for key in traces.keys():
-            entity = traces[key].get_entity()
-            for conn in known.get_conn(entity):
-                if conn not in inference:
-                    inference.append(conn)
-
-        more = True
-        temp_infer = []
-        # print("====start====")
-        while more:
-            # 只要有新的trace出现，就需要重新进行一次推导
-            # 可以优化，待填
-            more = False
-            # print("====\n", '\n'.join([repr(i) for i in inference]))
-            for conn in inference:
-                infer = conn.infer(self)
-                if infer is not None:
-                    for trace in infer:
-                        entity = trace.get_entity()
-                        text = trace.get_text()
-                        evidence = trace.get_evidence()
-                        # 同推导可能因为tag问题而覆盖，待解决
-                        self.append(entity, text, None, evidence)
-                        more = True
-                        # 推导可能成环，待解决
-                        # print("New:", trace)
-                        for conn in known.get_conn(entity):
-                            # 可以剪枝
-                            if conn not in inference:
-                                temp_infer.append(conn)
-                else:
-                    temp_infer.append(conn)
-
-            inference = temp_infer
-            temp_infer = []
-
-        # print(self.trace_stack)
+        assert len(self.inst_stack) == 1, "上下文栈未全退出"
+        known_stat = self.get_known_stat(known)
+        self.apply_closure(known_stat, known)
 
     def __repr__(self):
-        text = []
-        for stack in self.trace_stack:
-            for trace in stack.items():
-                text.append(repr(trace))
+        text = ["Context:"]
+        for stack in self.inst_stack:
+            text.append("==stack==")
+            for inst in stack.items():
+                text.append(repr(inst))
 
-        return ' '.join(text)
+        return '\n'.join(text)

@@ -6,10 +6,12 @@ class Decoder:
     """
     利用上下文匹配替换模板关键字，并判断条件
     """
+
     def __init__(self):
         pass
 
     def decode(self, text: str, ctx: list, knowledge: Knowledge) -> str:
+        # print(ctx)
         self.known = knowledge
         return self.match_dialog(text, ctx)
 
@@ -47,12 +49,28 @@ class Decoder:
 
         return dialog if sub_succ else None
 
+    def construct_evdience(self, evdi: str, ctx: Context) -> list:
+        re_tag = re.compile(r"(.+?)\|(.+)")
+        evdience = []
+        for e in evdi.split(" "):
+            match = re_tag.match(e)
+            if match is not None:
+                word = match.group(1)
+                tag = match.group(2)
+
+                entity = ctx.find(word, tag=tag)
+                if entity is None:
+                    return None
+                evdience.append(entity)
+
+        return evdience
+
     def match_word(self, words: list, ctx: Context) -> str:
         """
         判断words内的内容是否在上下文中存在且指向一文本
         """
         re_text = re.compile(r'"(.+?)"')
-        re_cond = re.compile(r'(.+?)-(.+)')
+        re_evdi = re.compile(r'(.+?)\{(.+)\}')
         re_tag = re.compile(r"(.+?)\|(.+)")
         text = None
         for word in words:
@@ -61,25 +79,28 @@ class Decoder:
             if match is not None:
                 match = match.group(1)
             else:
-                cond, tag = None, None
-                match = re_cond.match(word)
+                evdi, tag = None, None
+                match = re_evdi.match(word)
                 if match is not None:
                     word = match.group(1)
-                    cond = match.group(2)
+                    evdi = self.construct_evdience(match.group(2), ctx)
+                    if evdi is None:
+                        return None
 
                 match = re_tag.match(word)
                 if match is not None:
                     word = match.group(1)
                     tag = match.group(2)
 
-                # print(word, tag, cond)
-                match = ctx.find(word, tag, cond)
+                # print(word, tag, evdi)
+                match = ctx.find(word, tag, evdi)
                 if match is None:
                     return None
+                match = match.get_text()
 
             # print(word, ":", text, match)
             if text is None:
-                text = match.get_text()
+                text = match
             elif text != match:
                 return None
 

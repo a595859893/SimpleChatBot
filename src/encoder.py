@@ -1,12 +1,13 @@
 import re
 import utils
-from knowledge import Knowledge, Context
+from knowledge import Knowledge, Context, Instance
 
 
 class Encoder:
     """
     分析语句的匹配情况，并解析语句中关注的上下文
     """
+
     def __init__(self):
         pass
 
@@ -70,17 +71,18 @@ class Encoder:
 
                 if match_succ:
                     # 成功匹配，记录上下文
-                    ctx.append(entity, text, tag)
+                    ctx.append(Instance(entity, text, None, tag=tag))
                     ctx.apply_stack()
                     return True
                 else:
                     # 匹配失败，抛弃上下文
                     ctx.aborat_stack()
+                    print("aborat")
 
         return False
 
     def match_multi_entities(self, text: str, entities: list,
-                             ctx: list) -> bool:
+                             ctx: Context) -> bool:
         """
         匹配多个tag相邻的情况，通过遍历每种分割情况来确定结果
         """
@@ -97,7 +99,7 @@ class Encoder:
             if self.match_single_entity(text[i:], entities[-1], ctx):
                 temp_tag = entities.pop()
                 if self.match_multi_entities(text[:i], entities, ctx):
-                    ctx.append(text[i:], temp_tag)
+                    ctx.append(Instance(entities, text[i:], None))
                     # print("muti:", ctx)
                     return True
                 entities.append(temp_tag)
